@@ -10,23 +10,8 @@ Official code for our paper published at the **5th Conference on Lifelong Learni
 
 This repository implements **FEDQCL (Federated Queue-regulated Continual Learning)**, a federated
 continual learning (FCL) algorithm that casts the stability–plasticity trade-off across clients as
-a **Lyapunov drift-plus-penalty (DPP) control problem**. Each client maintains a per-task virtual
-queue `Q_k` that tracks how much the model's replay loss on a previous task `k` has drifted since
-that task was last learned. The local training objective combines:
+a **Lyapunov drift-plus-penalty (DPP) control problem**. 
 
-- a **current-task loss**, scaled by a penalty weight `V`, and
-- a **queue-weighted stability loss** on replayed samples from previous tasks, where each
-  previous task's contribution is weighted by its virtual queue `Q_k`.
-
-At every task boundary, each client (i) stores a bounded episodic memory for the task it just
-finished (balanced reservoir sampling across tasks) and (ii) updates its virtual queues via
-`Q_k <- max(Q_k + loss_current_k - loss_prev_k - delta, 0)`, where `delta` is a slack/target-drift
-parameter. This turns the classic catastrophic-forgetting problem into a distributed queue-stability
-problem, connecting FCL to Lyapunov optimization / drift-plus-penalty control.
-
-The federated learning scaffolding (client/server base classes, threaded local training,
-FedAvg aggregation, differential privacy, DLG attack evaluation) is built on top of
-[PFLlib](https://github.com/TsingZ0/PFLlib).
 
 ## Repository structure
 
@@ -66,8 +51,6 @@ FedQCL_Task/
 - PyTorch, torchvision
 - numpy, scikit-learn, h5py, matplotlib
 - wandb
-- opacus (differential privacy)
-- transformers (Whisper backbone, optional/speech tasks)
 - calmsize (GPU memory reporting)
 - Pillow
 
@@ -95,9 +78,7 @@ This writes per-task, per-client `.npz` shards plus a `config.json` per task und
 
 ## 2. Run federated continual learning
 
-The easiest way to reproduce the paper's main results (Table 1) is via [run.sh](run.sh), which
-sets the per-dataset hyperparameters from Table 3 of the paper (`V`, `delta`, tasks, clients,
-rounds/task, batch sizes, memory budget):
+The easiest way to run the method is via [run.sh](run.sh):
 
 ```bash
 ./run.sh cifar10          # Split-CIFAR-10:  5 tasks, V=20
@@ -147,21 +128,6 @@ Run `python main.py -h` for the full list of options.
 Results (accuracy/loss per run) are written under the folder given by `-go`/results utilities and
 averaged across `-t` repeated runs via `utils/result_utils.average_data`.
 
-## Method summary
-
-For client `i` on task `t`, with virtual queues `Q_i = [Q_i^0, ..., Q_i^{t-1}]`:
-
-1. **Local objective**: `V * CE(current task) + sum_k Q_i^k * (loss_k(current model) - loss_k(old model))`
-   over a memory batch for each previously seen task `k`.
-2. **Memory update** (end of task): store a balanced reservoir sample of the task's data,
-   capped at `memory_size` total samples spread across all seen tasks.
-3. **Queue update** (end of task, for each `k < t`): evaluate the current and pre-task model on
-   the full stored memory for task `k` and set
-   `Q_i^k <- max(Q_i^k + loss_current_k - loss_prev_k - delta, 0)`.
-
-Higher `Q_i^k` means task `k` has drifted more than tolerated (`delta`) and is up-weighted in
-future replay, while `V` controls the relative priority given to plasticity (learning the current
-task) versus stability (retaining previous tasks).
 
 ## Acknowledgements
 
